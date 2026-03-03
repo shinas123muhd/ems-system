@@ -1,0 +1,144 @@
+{% extends "layouts/base.html" %}
+{% block title %}Login — EMS Pro{% endblock %}
+
+{% block sidebar %}{% endblock %}
+{% block topbar %}{% endblock %}
+{% block wrapper_class %}no-sidebar{% endblock %}
+
+{% block content %}
+
+<style>
+  .auth-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+
+  }
+
+  .auth-box {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+  }
+
+  .auth-logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .auth-logo .icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    margin: 0 auto 12px;
+  }
+
+  .auth-logo h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+  }
+
+  .auth-logo p {
+    color: var(--muted);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  .auth-footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .auth-footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+</style>
+
+<div class="auth-wrap">
+  <div class="auth-box">
+
+    <div class="auth-logo">
+
+      <p>Sign in to your account</p>
+    </div>
+
+    <div id="errorBox" class="alert alert-danger" style="display:none;"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="email" class="form-control" required>
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="password" class="form-control" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary"
+        style="width:100%;justify-content:center;padding:11px;font-size:14px;">
+        <i class="fas fa-sign-in-alt"></i> Sign In
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      Don't have an account?
+      <a href="/register/">Create one</a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.getElementById("loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const errorBox = document.getElementById("errorBox");
+
+    errorBox.style.display = "none";
+
+    axios.post("/api/auth/login/", {
+      email: email,
+      password: password
+    })
+      .then(function (response) {
+        const data = response.data;
+
+        localStorage.setItem("access", data.tokens.access);
+        localStorage.setItem("refresh", data.tokens.refresh);
+
+        window.location.href = "/employees/";
+      })
+      .catch(function (error) {
+        errorBox.style.display = "block";
+
+        if (error.response && error.response.data) {
+          errorBox.innerText =
+            error.response.data.non_field_errors?.[0] ||
+            "Invalid email or password.";
+        } else {
+          errorBox.innerText = "Something went wrong.";
+        }
+      });
+  });
+</script>
+
+{% endblock %}

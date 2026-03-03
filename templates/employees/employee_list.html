@@ -1,0 +1,255 @@
+{% extends "layouts/base.html" %}
+{% block title %}Employees — EMS Pro{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block topbar_actions %}
+<a href="/employees/create/" class="btn btn-primary btn-sm">
+  <i class="fas fa-plus"></i> Add Employee
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- FILTER CARD -->
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-body" style="padding:16px 24px;">
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+
+      <div class="search-bar" style="flex:1;min-width:200px;position: relative;">
+        <i class="fas fa-search" style="position: absolute;left: 10px;top: 50%;transform: translateY(-50%);color: var(--muted);"></i>
+        <input type="text" id="searchInput" placeholder="Search by name, email, ID..." class="form-control" style="padding-left: 30px;">
+      </div>
+
+      <div style="min-width:160px;">
+        <select id="formFilter" class="form-control"></select>
+      </div>
+
+      <div style="min-width:160px;">
+        <input type="text" id="fieldLabel" placeholder="Field label..." class="form-control">
+      </div>
+
+      <div style="min-width:160px;">
+        <input type="text" id="fieldValue" placeholder="Field value..." class="form-control">
+      </div>
+
+      <button onclick="loadEmployees()" class="btn btn-primary">
+        <i class="fas fa-filter"></i> Filter
+      </button>
+
+      <button onclick="resetFilters()" class="btn btn-secondary">
+        Clear
+      </button>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">
+      Employee Records
+      <span id="totalCount" style="color:var(--muted);font-size:14px;font-weight:400;">
+        (0 total)
+      </span>
+    </h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Form</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="employeeTableBody">
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--muted);padding:40px;">
+            Loading...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+
+  /* =========================
+     LOAD FORMS FOR FILTER
+  ========================= */
+  function loadForms() {
+    axios.get("/api/forms/")
+      .then(res => {
+        const forms = res.data;
+        const select = document.getElementById("formFilter");
+
+        select.innerHTML = `<option value="">All Forms</option>`;
+
+        forms.forEach(f => {
+          select.innerHTML += `
+                  <option value="${f.id}">
+                    ${f.name}
+                  </option>`;
+        });
+      });
+  }
+
+  /* =========================
+     LOAD EMPLOYEES
+  ========================= */
+  function loadEmployees() {
+
+    const search = document.getElementById("searchInput").value;
+    const form_id = document.getElementById("formFilter").value;
+    const field_label = document.getElementById("fieldLabel").value;
+    const field_value = document.getElementById("fieldValue").value;
+
+    let params = new URLSearchParams();
+
+    if (search) params.append("search", search);
+    if (form_id) params.append("form_id", form_id);
+    if (field_label) params.append("field_label", field_label);
+    if (field_value) params.append("field_value", field_value);
+
+    axios.get(`/api/employees/?${params.toString()}`)
+      .then(res => {
+
+        const employees = res.data;
+        const tbody = document.getElementById("employeeTableBody");
+        const totalCount = document.getElementById("totalCount");
+
+        totalCount.innerText = `(${employees.length} total)`;
+
+        if (!employees.length) {
+          tbody.innerHTML = `
+                  <tr>
+                    <td colspan="6"
+                        style="text-align:center;color:var(--muted);padding:40px;">
+                        No employees found.
+                    </td>
+                  </tr>`;
+          return;
+        }
+
+        tbody.innerHTML = "";
+
+        employees.forEach(emp => {
+
+          tbody.innerHTML += `
+                <tr id="emp-row-${emp.id}">
+                  <td>
+                    <span class="badge badge-accent">
+                      ${emp.employee_id}
+                    </span>
+                  </td>
+
+                  <td>
+                    <strong>${emp.full_name}</strong>
+                  </td>
+
+                  <td style="color:var(--muted);">
+                    ${emp.email}
+                  </td>
+
+                  <td>
+                    ${emp.form
+              ? `<span class="badge badge-success">${emp.form_name}</span>`
+              : `<span style="color:var(--muted);">—</span>`}
+                  </td>
+
+                  <td style="color:var(--muted);font-size:13px;">
+                    ${new Date(emp.created_at).toLocaleDateString()}
+                  </td>
+
+                  <td>
+                    <div style="display:flex;gap:4px;">
+
+                      <a href="/employees/${emp.id}/edit/"
+                         class="btn btn-icon btn-secondary">
+                        <i class="fas fa-pen"></i>
+                      </a>
+
+                      <button onclick="deleteEmployee(${emp.id}, '${emp.full_name}')"
+                              class="btn btn-icon btn-danger">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                `;
+        });
+
+      })
+      .catch(() => {
+        showToast("Failed to load employees.", "error");
+      });
+  }
+
+  /* =========================
+     DELETE EMPLOYEE
+  ========================= */
+  function deleteEmployee(id, name) {
+
+    if (!confirm(`Delete "${name}"? This cannot be undone.`))
+      return;
+
+    axios.delete(`/api/employees/${id}/`)
+      .then(() => {
+
+        const row = document.getElementById(`emp-row-${id}`);
+        if (row) {
+          row.style.opacity = "0";
+          setTimeout(() => row.remove(), 300);
+        }
+
+        showToast("Employee deleted.", "success");
+      })
+      .catch(() => {
+        showToast("Delete failed.", "error");
+      });
+  }
+
+  /* =========================
+     RESET FILTERS
+  ========================= */
+  function resetFilters() {
+    document.getElementById("searchInput").value = "";
+    document.getElementById("formFilter").value = "";
+    document.getElementById("fieldLabel").value = "";
+    document.getElementById("fieldValue").value = "";
+    loadEmployees();
+  }
+
+
+document.addEventListener("DOMContentLoaded", function () {
+    loadForms();
+    loadEmployees();
+
+
+    const debounce = (fn, delay = 400) => {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn(...args), delay);
+        };
+    };
+
+    const debouncedLoad = debounce(loadEmployees);
+
+    document.getElementById("searchInput").addEventListener("input", debouncedLoad);
+    document.getElementById("fieldLabel").addEventListener("input", debouncedLoad);
+    document.getElementById("fieldValue").addEventListener("input", debouncedLoad);
+
+    document.getElementById("formFilter").addEventListener("change", loadEmployees);
+});
+</script>
+
+{% endblock %}

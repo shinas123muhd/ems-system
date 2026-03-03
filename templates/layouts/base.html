@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EMS — Employee Management System{% endblock %}</title>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+
+    {% block sidebar %}
+    <aside class="sidebar" id="sidebar">
+
+
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Sidebar</div>
+            <!-- <a href="/dashboard/" class="nav-item"><i class="fas fa-chart-pie"></i> Dashboard</a> -->
+            <a href="/employees/" class="nav-item"><i class="fas fa-users"></i> Employees</a>
+
+            <div class="nav-section-label">Configuration</div>
+            <a href="/employees/forms/" class="nav-item"><i class="fas fa-table-columns"></i> Form Builder</a>
+
+            <div class="nav-section-label">Account</div>
+            <a href="/profile/" class="nav-item"><i class="fas fa-user-circle"></i> My Profile</a>
+            <a href="/change-password/" class="nav-item"><i class="fas fa-lock"></i> Change Password</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-card">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <div class="user-info">
+                    <div class="user-name" id="userName">Loading...</div>
+                    <div class="user-role" id="userDepartment"></div>
+                </div>
+                <div class="user-actions">
+                    <a href="#" onclick="logoutUser()"><i class="fas fa-sign-out-alt"></i></a>
+                </div>
+            </div>
+        </div>
+    </aside>
+    {% endblock %}
+
+
+    <div class="main-wrapper {% block wrapper_class %}{% endblock %}">
+        {% block topbar %}
+        <header class="topbar">
+            <h1 class="topbar-title">{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="topbar-actions">{% block topbar_actions %}{% endblock %}</div>
+        </header>
+        {% endblock %}
+
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+
+        axios.interceptors.request.use(function (config) {
+            const token = localStorage.getItem("access");
+            if (token) {
+                config.headers.Authorization = "Bearer " + token;
+            }
+            return config;
+        });
+
+
+        const publicRoutes = ["/login/", "/register/"];
+
+        function checkAuth() {
+            const token = localStorage.getItem("access");
+
+            if (!token && !publicRoutes.includes(window.location.pathname)) {
+                window.location.href = "/login/";
+            }
+
+            if (token && publicRoutes.includes(window.location.pathname)) {
+                window.location.href = "/employees/";
+            }
+        }
+
+
+        function loadUser() {
+            axios.get("/api/auth/profile/")
+                .then(function (response) {
+                    const user = response.data;
+
+                    document.getElementById("userName").innerText =
+                        user.first_name + " " + user.last_name;
+
+                    document.getElementById("userDepartment").innerText =
+                        user.department || "No Department";
+
+                    const initials =
+                        (user.first_name?.[0] || "") +
+                        (user.last_name?.[0] || "");
+
+                    document.getElementById("userAvatar").innerText =
+                        initials.toUpperCase();
+                })
+                .catch(function () {
+                    logoutUser();
+                });
+        }
+
+
+        function logoutUser() {
+            localStorage.removeItem("access");
+            localStorage.removeItem("refresh");
+            window.location.href = "/login/";
+        }
+
+
+        function showToast(msg, type = 'info') {
+            const c = document.getElementById('toast-container');
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.innerHTML = `<span>${msg}</span>`;
+            c.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            checkAuth();
+            if (localStorage.getItem("access")) {
+                loadUser();
+            }
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

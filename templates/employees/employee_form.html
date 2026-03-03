@@ -1,0 +1,302 @@
+{% extends "layouts/base.html" %}
+{% block title %}Employee Form — EMS Pro{% endblock %}
+{% block page_title %}Employee Form{% endblock %}
+
+{% block topbar_actions %}
+<a href="/employees/" class="btn btn-secondary btn-sm">
+  <i class="fas fa-arrow-left"></i> Back
+</a>
+{% endblock %}
+
+{% block content %}
+
+<div style="max-width:800px;">
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">Employee Information</h2>
+    </div>
+
+    <div class="card-body">
+
+      <div id="form-error" class="alert alert-danger" style="display:none;">
+        <span id="form-error-msg"></span>
+      </div>
+
+      <!-- BASIC FIELDS -->
+      <h3
+        style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:16px;">
+        Basic Information
+      </h3>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" id="first_name" class="form-control">
+        </div>
+
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" id="last_name" class="form-control">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Email *</label>
+        <input type="email" id="email" class="form-control">
+      </div>
+
+      <!-- FORM SELECTOR -->
+      <hr style="border-color:var(--border);margin:24px 0;">
+
+      <h3
+        style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:16px;">
+        Dynamic Form
+      </h3>
+
+      <div class="form-group">
+        <label>Select Form Template</label>
+        <select id="form-selector" class="form-control"></select>
+      </div>
+
+      <div id="dynamic-fields-container"></div>
+
+      <div style="display:flex;gap:10px;margin-top:24px;">
+        <button onclick="saveEmployee()" class="btn btn-primary">
+          <i class="fas fa-save"></i> Save Employee
+        </button>
+        <a href="/employees/" class="btn btn-secondary">Cancel</a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+
+  /* ==============================
+     DETECT EDIT MODE FROM URL
+  ============================== */
+  const pathParts = window.location.pathname.split('/').filter(p => p);
+  const possibleId1 = parseInt(pathParts[pathParts.length - 1]);
+  const possibleId2 = parseInt(pathParts[pathParts.length - 2]);
+  const EMPLOYEE_ID = !isNaN(possibleId1) ? possibleId1 : (!isNaN(possibleId2) ? possibleId2 : null);
+
+  /* ==============================
+     LOAD FORM LIST
+  ============================== */
+  function loadForms() {
+    return axios.get("/api/forms/")
+      .then(res => {
+        const forms = res.data;
+        const selector = document.getElementById("form-selector");
+
+        selector.innerHTML = `<option value="">-- No form selected --</option>`;
+
+        forms.forEach(f => {
+          selector.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+        });
+      })
+      .catch(() => {
+        showError("Failed to load forms.");
+      });
+  }
+
+  /* ==============================
+     LOAD FORM FIELDS
+  ============================== */
+  function loadFormFields() {
+
+    const formId = document.getElementById("form-selector").value;
+    const container = document.getElementById("dynamic-fields-container");
+
+    if (!formId) {
+      container.innerHTML = "";
+      return Promise.resolve();
+    }
+
+    return axios.get(`/api/forms/${formId}/fields/`)
+      .then(res => {
+
+        const fields = res.data;
+        container.innerHTML = "";
+
+        if (!fields.length) {
+          container.innerHTML = `
+                    <p style="color:var(--muted);font-size:14px;">
+                        This form has no custom fields.
+                    </p>`;
+          return;
+        }
+
+        let html = `<hr style="border-color:var(--border);margin:20px 0;">
+                        <h3 style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:16px;">
+                        Custom Fields
+                        </h3>`;
+
+        fields.forEach(f => {
+
+          html += `<div class="form-group">
+                           <label>${f.label}${f.is_required ? ' *' : ''}</label>`;
+
+          if (f.field_type === "textarea") {
+            html += `<textarea class="form-control dynamic-field"
+                                 data-field-id="${f.id}"
+                                 placeholder="${f.placeholder || ''}"></textarea>`;
+          }
+          else if (f.field_type === "select") {
+            html += `<select class="form-control dynamic-field"
+                                  data-field-id="${f.id}">
+                                <option value="">Select...</option>`;
+            (f.options_list || []).forEach(o => {
+              html += `<option value="${o}">${o}</option>`;
+            });
+            html += `</select>`;
+          }
+          else if (f.field_type === "checkbox") {
+            html += `<input type="checkbox"
+                               class="dynamic-field"
+                               data-field-id="${f.id}">`;
+          }
+          else {
+            html += `<input type="${f.field_type}"
+                               class="form-control dynamic-field"
+                               data-field-id="${f.id}"
+                               placeholder="${f.placeholder || ''}">`;
+          }
+
+          html += `</div>`;
+        });
+
+        container.innerHTML = html;
+      })
+      .catch(() => {
+        showError("Failed to load form fields.");
+      });
+  }
+
+  /* ==============================
+     LOAD EMPLOYEE DATA (EDIT MODE)
+  ============================== */
+  async function loadEmployeeData() {
+    try {
+      const res = await axios.get(`/api/employees/${EMPLOYEE_ID}/`);
+      const emp = res.data;
+
+      // Prefill basic fields
+      document.getElementById("first_name").value = emp.first_name || "";
+      document.getElementById("last_name").value = emp.last_name || "";
+      document.getElementById("email").value = emp.email || "";
+
+      // If employee has a form attached, select it, load its fields, then prefill values
+      if (emp.form) {
+        document.getElementById("form-selector").value = emp.form;
+
+        // Wait for fields to render before prefilling
+        await loadFormFields();
+
+        // Prefill dynamic field values
+        (emp.field_values || []).forEach(fv => {
+          const el = document.querySelector(`.dynamic-field[data-field-id="${fv.form_field}"]`);
+          if (!el) return;
+
+          if (el.type === "checkbox") {
+            el.checked = fv.value === "true" || fv.value === "on";
+          } else {
+            el.value = fv.value || "";
+          }
+        });
+      }
+
+    } catch (err) {
+      console.error("Failed to load employee:", err);
+      showError("Failed to load employee data.");
+    }
+  }
+
+  /* ==============================
+     SAVE EMPLOYEE
+  ============================== */
+  function saveEmployee() {
+
+    const first_name = document.getElementById("first_name").value.trim();
+    const last_name = document.getElementById("last_name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const form_id = document.getElementById("form-selector").value;
+
+    if (!first_name || !last_name || !email) {
+      showError("First name, last name and email are required.");
+      return;
+    }
+
+    // Build dynamic_fields as a dict keyed by "field_{id}"
+    const dynamic_fields = {};
+    document.querySelectorAll(".dynamic-field").forEach(el => {
+      if (el.type === "checkbox") {
+        dynamic_fields[`field_${el.dataset.fieldId}`] = el.checked ? "true" : "false";
+      } else {
+        dynamic_fields[`field_${el.dataset.fieldId}`] = el.value;
+      }
+    });
+
+    const payload = {
+      first_name,
+      last_name,
+      email,
+      form: form_id || null,
+      dynamic_fields
+    };
+
+    const request = EMPLOYEE_ID
+      ? axios.put(`/api/employees/${EMPLOYEE_ID}/`, payload)
+      : axios.post(`/api/employees/`, payload);
+
+    request
+      .then(() => {
+        showToast("Employee saved successfully.", "success");
+        setTimeout(() => window.location.href = "/employees/", 800);
+      })
+      .catch(err => {
+        console.error("Save error:", err);
+        if (err.response?.data) {
+          const firstError = Object.values(err.response.data)[0];
+          showError(Array.isArray(firstError) ? firstError[0] : firstError);
+        } else {
+          showError("Failed to save employee.");
+        }
+      });
+  }
+
+  /* ==============================
+     HELPERS
+  ============================== */
+  function showError(msg) {
+    const box = document.getElementById("form-error");
+    document.getElementById("form-error-msg").innerText = msg;
+    box.style.display = "flex";
+  }
+
+  /* ==============================
+     INIT
+  ============================== */
+  document.addEventListener("DOMContentLoaded", async function () {
+
+    // Always load the forms list first
+    await loadForms();
+
+    if (EMPLOYEE_ID) {
+      // Edit mode: load and prefill employee data
+      loadEmployeeData();
+    } else {
+      // Create mode: just listen for form selector changes
+      document.getElementById("form-selector")
+        .addEventListener("change", loadFormFields);
+    }
+
+    // Always attach change listener
+    document.getElementById("form-selector")
+      .addEventListener("change", loadFormFields);
+  });
+
+</script>
+
+{% endblock %}

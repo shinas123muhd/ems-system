@@ -1,0 +1,461 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}
+<span id="page-window-title">New</span> Form — EMS Pro
+{% endblock %}
+
+{% block page_title %}
+<span id="page-main-title">Form Builder</span>
+{% endblock %}
+
+{% block topbar_actions %}
+<a href="/employees/forms/" class="btn btn-secondary btn-sm">
+  <i class="fas fa-arrow-left"></i> Back
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .field-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: default;
+  }
+
+  .field-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+  }
+
+  /* Dragging state */
+  .field-card.dragging {
+    opacity: 0.4;
+    border: 2px dashed var(--accent);
+    box-shadow: none;
+  }
+
+  /* Drop target highlight */
+  .field-card.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.25);
+    background: rgba(108, 99, 255, 0.05);
+  }
+
+  .drag-handle {
+    cursor: grab;
+    color: var(--muted);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+  }
+
+  .drag-handle:hover {
+    color: var(--accent);
+    background: rgba(108, 99, 255, 0.1);
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 140px 100px auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .field-options {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .builder-sidebar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: sticky;
+    top: 80px;
+  }
+
+  .add-field-btn {
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .add-field-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Drop indicator line */
+  .drop-indicator {
+    height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    display: none;
+  }
+</style>
+{% endblock %}
+
+
+{% block content %}
+
+<div style="display:grid;grid-template-columns:1fr 280px;gap:24px;align-items:start;">
+
+  <!-- MAIN BUILDER -->
+  <div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-header">
+        <h2 class="card-title">Form Details</h2>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Form Name <span style="color:var(--danger);">*</span></label>
+          <input type="text" id="form-name" class="form-control" placeholder="e.g. Employee Onboarding Form">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="form-description" class="form-control" rows="2"
+            placeholder="Optional description..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Form Fields</h2>
+        <span id="field-count" style="color:var(--muted);font-size:13px;">0 fields</span>
+      </div>
+      <div class="card-body">
+        <div id="fields-container"></div>
+        <button class="add-field-btn" onclick="addField()">
+          <i class="fas fa-plus"></i> Add Field
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="builder-sidebar">
+
+    <h3 style="font-family:Syne;font-size:14px;font-weight:700;margin-bottom:16px;">
+      Save Form
+    </h3>
+
+    <div id="save-error" class="alert alert-danger" style="display:none;">
+      <i class="fas fa-exclamation-circle"></i>
+      <span id="save-error-msg"></span>
+    </div>
+
+    <button onclick="saveForm()" class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:10px;">
+      <i class="fas fa-save"></i> Save Form
+    </button>
+
+    <a href="/employees/forms/" class="btn btn-secondary" style="width:100%;justify-content:center;">
+      Cancel
+    </a>
+
+    <hr style="border-color:var(--border);margin:20px 0;">
+
+    <h3 style="font-family:Syne;font-size:14px;font-weight:700;margin-bottom:12px;">
+      Field Types
+    </h3>
+
+    <div id="sidebar-field-types"></div>
+
+    <hr style="border-color:var(--border);margin:20px 0;">
+
+    <p style="color:var(--muted);font-size:12px;display:flex;align-items:center;gap:6px;">
+      <i class="fas fa-grip-dots-vertical"></i>
+      Drag the handle on each field to reorder
+    </p>
+
+  </div>
+</div>
+
+
+<script>
+
+  const pathParts = window.location.pathname.split('/').filter(p => p);
+  const possibleId1 = parseInt(pathParts[pathParts.length - 1]);
+  const possibleId2 = parseInt(pathParts[pathParts.length - 2]);
+  const FORM_ID = !isNaN(possibleId1) ? possibleId1 : (!isNaN(possibleId2) ? possibleId2 : null);
+
+  let fieldCounter = 0;
+  let dragSrcEl = null; // tracks the card being dragged
+
+  const FIELD_TYPES = [
+    { value: "text",     label: "Text" },
+    { value: "email",    label: "Email" },
+    { value: "number",   label: "Number" },
+    { value: "date",     label: "Date" },
+    { value: "password", label: "Password" },
+    { value: "textarea", label: "Textarea" },
+    { value: "select",   label: "Select" },
+    { value: "radio",    label: "Radio" },
+    { value: "checkbox", label: "Checkbox" }
+  ];
+
+  function buildTypeOptions(selected = 'text') {
+    return FIELD_TYPES.map(t =>
+      `<option value="${t.value}" ${t.value === selected ? 'selected' : ''}>${t.label}</option>`
+    ).join('');
+  }
+
+  /* ==============================
+     DRAG AND DROP LOGIC
+  ============================== */
+  function addDragListeners(card) {
+
+    const handle = card.querySelector(".drag-handle");
+
+    // Only the handle makes the card draggable
+    handle.addEventListener("mousedown", () => {
+      card.setAttribute("draggable", "true");
+    });
+
+    handle.addEventListener("mouseup", () => {
+      card.setAttribute("draggable", "false");
+    });
+
+    card.addEventListener("dragstart", (e) => {
+      dragSrcEl = card;
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      // Required for Firefox
+      e.dataTransfer.setData("text/plain", "");
+    });
+
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      card.setAttribute("draggable", "false");
+      // Clean up all drag-over classes
+      document.querySelectorAll(".field-card").forEach(c => c.classList.remove("drag-over"));
+    });
+
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (card !== dragSrcEl) {
+        card.classList.add("drag-over");
+      }
+    });
+
+    card.addEventListener("dragleave", () => {
+      card.classList.remove("drag-over");
+    });
+
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      card.classList.remove("drag-over");
+
+      if (dragSrcEl && dragSrcEl !== card) {
+        const container = document.getElementById("fields-container");
+        const cards = [...container.querySelectorAll(".field-card")];
+        const srcIndex = cards.indexOf(dragSrcEl);
+        const tgtIndex = cards.indexOf(card);
+
+        // Insert before or after depending on direction
+        if (srcIndex < tgtIndex) {
+          container.insertBefore(dragSrcEl, card.nextSibling);
+        } else {
+          container.insertBefore(dragSrcEl, card);
+        }
+      }
+    });
+  }
+
+  /* ==============================
+     ADD FIELD
+  ============================== */
+  function addField(data = {}) {
+
+    fieldCounter++;
+
+    const div = document.createElement("div");
+    div.className = "field-card";
+    div.setAttribute("draggable", "false"); // only draggable via handle
+
+    div.innerHTML = `
+      <div class="field-row">
+
+        <div class="drag-handle" title="Drag to reorder">
+          <i class="fas fa-grip-vertical"></i>
+        </div>
+
+        <input type="text"
+          class="form-control field-label"
+          placeholder="Field label"
+          value="${data.label || ''}">
+
+        <select class="form-control field-type">
+          ${buildTypeOptions(data.field_type || 'text')}
+        </select>
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="checkbox"
+            class="field-required"
+            ${data.is_required ? 'checked' : ''}>
+          <label style="font-size:12px;margin:0;">Req.</label>
+        </div>
+
+        <button onclick="removeField(this)" class="btn btn-icon btn-danger">
+          <i class="fas fa-times"></i>
+        </button>
+
+      </div>
+
+      
+    `;
+
+    document.getElementById("fields-container").appendChild(div);
+
+    // Attach drag-and-drop listeners to the new card
+    addDragListeners(div);
+
+    updateFieldCount();
+  }
+
+  function removeField(btn) {
+    btn.closest(".field-card").remove();
+    updateFieldCount();
+  }
+
+  function updateFieldCount() {
+    const count = document.querySelectorAll(".field-card").length;
+    document.getElementById("field-count").innerText =
+      `${count} field${count !== 1 ? 's' : ''}`;
+  }
+
+  /* ==============================
+     LOAD FORM DATA (EDIT MODE)
+  ============================== */
+  async function loadFormData() {
+    try {
+      const res = await axios.get(`/api/forms/${FORM_ID}/`);
+      console.log("Form data:", res.data);
+
+      document.getElementById("form-name").value = res.data.name || "";
+      document.getElementById("form-description").value = res.data.description || "";
+
+      const fields = res.data.fields || [];
+      fields.forEach(f => addField(f));
+
+    } catch (err) {
+      console.error("Failed to load form:", err);
+      showToast("Failed to load form data.", "error");
+    }
+  }
+
+  /* ==============================
+     SAVE FORM
+  ============================== */
+  async function saveForm() {
+
+    const name = document.getElementById("form-name").value.trim();
+    const description = document.getElementById("form-description").value;
+
+    if (!name) {
+      showError("Form name is required.");
+      return;
+    }
+
+    try {
+      const cards = document.querySelectorAll(".field-card");
+      const fields = [];
+
+      // Order is determined by current DOM position — drag and drop sets this automatically
+      cards.forEach((card, i) => {
+        const label = card.querySelector(".field-label").value.trim();
+        if (!label) return;
+
+        fields.push({
+          label:         label,
+          field_type:    card.querySelector(".field-type").value,
+          // placeholder:   card.querySelector(".field-placeholder").value,
+          // default_value: card.querySelector(".field-default").value,
+          // options:       card.querySelector(".field-options-input").value,
+          is_required:   card.querySelector(".field-required").checked,
+          order:         i   // DOM order = drag-and-drop order
+        });
+      });
+
+      const payload = {
+        name,
+        description,
+        is_active: true,
+        fields
+      };
+
+      if (FORM_ID) {
+        await axios.put(`/api/forms/${FORM_ID}/`, payload);
+      } else {
+        await axios.post(`/api/forms/`, payload);
+      }
+
+      showToast("Form saved successfully", "success");
+      setTimeout(() => { window.location.href = "/employees/forms/"; }, 800);
+
+    } catch (err) {
+      console.error("Save error:", err);
+      showError("Failed to save form.");
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById("save-error").style.display = "flex";
+    document.getElementById("save-error-msg").innerText = msg;
+  }
+
+  /* ==============================
+     INIT
+  ============================== */
+  document.addEventListener("DOMContentLoaded", () => {
+
+    // Render sidebar field types list
+    const sidebarContainer = document.getElementById("sidebar-field-types");
+    FIELD_TYPES.forEach(t => {
+      const div = document.createElement("div");
+      div.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 0;color:var(--muted);font-size:13px;";
+      div.innerHTML = `<i class="fas fa-grip-dots-vertical" style="font-size:11px;"></i> ${t.label}`;
+      sidebarContainer.appendChild(div);
+    });
+
+    if (FORM_ID) {
+      const windowTitle = document.getElementById("page-window-title");
+      const mainTitle   = document.getElementById("page-main-title");
+      if (windowTitle) windowTitle.innerText = "Edit";
+      if (mainTitle)   mainTitle.innerText   = "Edit Form";
+      loadFormData();
+    }
+  });
+
+</script>
+
+{% endblock %}

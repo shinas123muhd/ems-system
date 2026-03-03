@@ -1,0 +1,108 @@
+{% extends "layouts/base.html" %}
+{% block title %}Register — EMS Pro{% endblock %}
+
+{% block sidebar %}{% endblock %}
+{% block topbar %}{% endblock %}
+{% block wrapper_class %}no-sidebar{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-box">
+
+    <div style="text-align:center;margin-bottom:32px;">
+      <h1 style="font-family:Syne,sans-serif;font-size:22px;font-weight:800;">Create Account</h1>
+
+    </div>
+
+    <div id="errorBox" class="alert alert-danger" style="display:none;"></div>
+
+    <form id="registerForm" style="max-width:600px;margin:0 auto;">
+
+
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="username" class="form-control" required>
+      </div>
+
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="email" class="form-control" required>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="text" id="phone" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Department</label>
+          <input type="text" id="department" class="form-control">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="password" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Confirm Password</label>
+          <input type="password" id="password2" class="form-control" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;">
+        <i class="fas fa-user-plus"></i> Create Account
+      </button>
+
+    </form>
+
+    <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--muted);">
+      Already have an account?
+      <a href="/login/" style="color:var(--accent);text-decoration:none;">Sign in</a>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.getElementById("registerForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const errorBox = document.getElementById("errorBox");
+    errorBox.style.display = "none";
+
+    const data = {
+      // first_name: document.getElementById("first_name").value,
+      // last_name: document.getElementById("last_name").value,
+      username: document.getElementById("username").value,
+      email: document.getElementById("email").value,
+      phone: document.getElementById("phone").value,
+      department: document.getElementById("department").value,
+      password: document.getElementById("password").value,
+      password2: document.getElementById("password2").value
+    };
+
+    axios.post("/api/auth/register/", data)
+      .then(function (response) {
+        const tokens = response.data.tokens;
+
+        localStorage.setItem("access", tokens.access);
+        localStorage.setItem("refresh", tokens.refresh);
+
+        window.location.href = "/employees/";
+      })
+      .catch(function (error) {
+        errorBox.style.display = "block";
+
+        if (error.response && error.response.data) {
+          const errors = error.response.data;
+          errorBox.innerText = Object.values(errors)[0][0];
+        } else {
+          errorBox.innerText = "Registration failed.";
+        }
+      });
+  });
+</script>
+
+{% endblock %}

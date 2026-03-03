@@ -1,0 +1,167 @@
+{% extends "layouts/base.html" %}
+{% block title %}Form Builder — EMS Pro{% endblock %}
+{% block page_title %}Form Builder{% endblock %}
+
+{% block topbar_actions %}
+<a href="/employees/forms/builder/" class="btn btn-primary btn-sm">
+  <i class="fas fa-plus"></i> New Form
+</a>
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+
+  <div class="card-header">
+    <h2 class="card-title">
+      Your Forms
+      <span id="formCount"
+            style="color:var(--muted);font-size:14px;">
+        (0 total)
+      </span>
+    </h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Form Name</th>
+          <th>Fields</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="formTableBody">
+        <tr>
+          <td colspan="5"
+              style="text-align:center;color:var(--muted);padding:40px;">
+              Loading...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+
+/* =========================
+   LOAD FORMS
+========================= */
+function loadForms() {
+
+    axios.get(`/api/forms/`)
+        .then(res => {
+
+            const forms = res.data;
+            const tbody = document.getElementById("formTableBody");
+            const formCount = document.getElementById("formCount");
+
+            formCount.innerText = `(${forms.length} total)`;
+
+            if (!forms.length) {
+                tbody.innerHTML = `
+                  <tr>
+                    <td colspan="5"
+                        style="text-align:center;color:var(--muted);padding:40px;">
+                        No forms yet.
+                    </td>
+                  </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = "";
+
+            forms.forEach(form => {
+
+                tbody.innerHTML += `
+                <tr id="form-row-${form.id}">
+
+                  <td>
+                    <strong>${form.name}</strong>
+                    ${form.description
+                      ? `<p style="color:var(--muted);font-size:12px;margin-top:2px;">
+                           ${form.description}
+                         </p>`
+                      : ``}
+                  </td>
+
+                  <td>
+                    <span class="badge badge-accent">
+                      ${form.fields_count || 0} fields
+                    </span>
+                  </td>
+
+                  <td>
+                    ${form.is_active
+                      ? `<span class="badge badge-success">
+                           Active
+                         </span>`
+                      : `<span class="badge badge-danger">
+                           Inactive
+                         </span>`}
+                  </td>
+
+                  <td style="color:var(--muted);font-size:13px;">
+                    ${new Date(form.created_at).toLocaleDateString()}
+                  </td>
+
+                  <td>
+                    <div style="display:flex;gap:4px;">
+
+                      <a href="/employees/forms/builder/${form.id}/"
+                         class="btn btn-icon btn-secondary">
+                        <i class="fas fa-pen"></i>
+                      </a>
+
+                      <button onclick="deleteForm(${form.id}, '${form.name}')"
+                              class="btn btn-icon btn-danger">
+                        <i class="fas fa-trash"></i>
+                      </button>
+
+                    </div>
+                  </td>
+
+                </tr>
+                `;
+            });
+
+        })
+        .catch(() => {
+            showToast("Failed to load forms.", "error");
+        });
+}
+
+/* =========================
+   DELETE FORM
+========================= */
+function deleteForm(id, name) {
+
+    if (!confirm(`Delete "${name}"? This cannot be undone.`))
+        return;
+
+    axios.delete(`/api/forms/${id}/`)
+        .then(() => {
+
+            const row = document.getElementById(`form-row-${id}`);
+            if (row) {
+                row.style.opacity = "0";
+                setTimeout(() => row.remove(), 300);
+            }
+
+            showToast("Form deleted successfully.", "success");
+        })
+        .catch(() => {
+            showToast("Delete failed.", "error");
+        });
+}
+
+/* INIT */
+document.addEventListener("DOMContentLoaded", loadForms);
+
+</script>
+
+{% endblock %}
